@@ -123,6 +123,10 @@ function appendNewReservations(sheet, newData) {
     const row = newData[i];
     const confirmationCode = row[0];
 
+    // Convert date strings to Date objects
+    row[7] = parseDate(row[7]);
+    row[8] = parseDate(row[8]);
+
     if (!existingCodes.includes(confirmationCode)) {
       // New reservation, append it
       sheet.appendRow(row);
@@ -148,7 +152,55 @@ function appendNewReservations(sheet, newData) {
   // Sort the sheet by start date (oldest to newest)
   sortSheetByStartDate(sheet);
 
+  // Set date format for columns H and I
+  const dateRange = sheet.getRange(2, 8, sheet.getLastRow() - 1, 2);
+  dateRange.setNumberFormat('dd / mm / yyyy');
+
   return updatedRowCount;
+}
+
+function parseDate(dateString) {
+  // Parse the date string
+  const parts = dateString.split('/');
+  const month = parseInt(parts[0], 10);
+  const day = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+
+  // Create and return a Date object
+  return new Date(year, month - 1, day);
+}
+
+function sortSheetByStartDate(sheet) {
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  
+  if (lastRow > 1) { // Only sort if there's data beyond the header
+    const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+    range.sort({column: 8, ascending: true}); // Column H (8) is the Start date column, sorted in ascending order
+  }
+}
+
+function formatSheet(sheet) {
+  const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+  headerRange.setFontWeight('bold').setBackground('#f3f3f3');
+  
+  // Ensure date columns are formatted correctly
+  const dateRange = sheet.getRange(2, 8, sheet.getLastRow() - 1, 2);
+  dateRange.setNumberFormat('dd / mm / yyyy');
+}
+
+function formatDate(dateString) {
+  // Parse the date string
+  const parts = dateString.split('/');
+  const month = parseInt(parts[0], 10);
+  const day = parseInt(parts[1], 10);
+  const year = parseInt(parts[2], 10);
+
+  // Create a Date object
+  const date = new Date(year, month - 1, day);
+
+  // Format the date as DD / MM / YYYY
+  return Utilities.formatDate(date, Session.getScriptTimeZone(), 'dd / MM / yyyy');
 }
 
 function updateReservations() {
@@ -184,22 +236,64 @@ function sortSheetByStartDate(sheet) {
   }
 }
 
-
 function addAdditionalColumns(sheet) {
-  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const lastRow = sheet.getLastRow();
   
-  if (lastColumn < 17) { // If additional columns haven't been added yet
-    sheet.getRange(1, 14, 1, 4).setValues([['City Tax', 'Checked In', 'Checked Out', 'Cleaned']]);
+  // Find column indices
+  const findColumnIndex = (name) => headers.indexOf(name) + 1;
+  const orarioCheckInCol = findColumnIndex('Orario Check-in');
+  const cityTaxCol = findColumnIndex('City Tax');
+  const richiestaCol = findColumnIndex('Richiesta');
+  const pagataCol = findColumnIndex('Pagata');
+  const docCol = findColumnIndex('DOC');
+  const noteCol = findColumnIndex('Note');
+
+  // If any column is missing, add it
+  if (!orarioCheckInCol || !cityTaxCol || !richiestaCol || !pagataCol || !docCol || !noteCol) {
+    const missingHeaders = ['Orario Check-in', 'City Tax', 'Richiesta', 'Pagata', 'DOC', 'Note'].filter(header => !findColumnIndex(header));
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+    // Refresh headers after adding new columns
+    headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  }
+
+  if (lastRow > 1) {
+    // Set City Tax formula
+    if (cityTaxCol) {
+      const cityTaxRange = sheet.getRange(2, cityTaxCol, lastRow - 1, 1);
+      cityTaxRange.setFormula('=IF(J2<=10,((E2*config!$B$4)*J2),((E2*config!$B$4)*10))');
+      cityTaxRange.setNumberFormat('€#,##0.00');
+    }
+
+    // Add checkboxes for Orario Check-in, Richiesta, Pagata, and DOC columns
+    [orarioCheckInCol, richiestaCol, pagataCol, docCol].forEach(col => {
+      if (col) {
+        sheet.getRange(2, col, lastRow - 1, 1).insertCheckboxes();
+      }
+    });
+
+    // Clear any existing values in the Note column
+    if (noteCol) {
+      sheet.getRange(2, noteCol, lastRow - 1, 1).clearContent();
+    }
+  }
+}
+
+function formatSheet(sheet) {
+  const headerRange = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+  headerRange.setFontWeight('bold').setBackground('#f3f3f3');
+  
+  // Ensure date columns are formatted correctly
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const startDateCol = headers.indexOf('Start date') + 1;
+  const endDateCol = headers.indexOf('End date') + 1;
+  if (startDateCol && endDateCol) {
+    const dateRange = sheet.getRange(2, startDateCol, sheet.getLastRow() - 1, endDateCol - startDateCol + 1);
+    dateRange.setNumberFormat('dd / mm / yyyy');
   }
   
-  if (lastRow > 1) {
-    const cityTaxRange = sheet.getRange(2, 14, lastRow - 1, 1);
-    cityTaxRange.setFormula('=IF(J2<=10,((E2*config!$B$4)*J2),((E2*config!$B$4)*10))');
-    
-    const checkboxRange = sheet.getRange(2, 15, lastRow - 1, 3);
-    checkboxRange.insertCheckboxes();
-  }
+  // Auto-resize columns to fit content
+  sheet.autoResizeColumns(1, sheet.getLastColumn());
 }
 
 function getOrCreateSheet(sheetName) {
