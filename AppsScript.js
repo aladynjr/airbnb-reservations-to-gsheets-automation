@@ -40,16 +40,15 @@ function updateReservations() {
       const updatedRowCount = appendNewReservations(sheet, newData);
       addAdditionalColumns(sheet);
       formatSheet(sheet);
-      showToast(`Added ${updatedRowCount} new reservations (including dummy data)`, 'Success');
+      showToast(`Updated ${updatedRowCount} reservations (including new, modified, and canceled). Sorted by start date.`, 'Success');
     } else {
-      showToast('No new reservations to add', 'Info');
+      showToast('No reservations to update', 'Info');
     }
   } catch (error) {
     console.error('Error in updateReservations:', error);
     showToast('Error updating reservations: ' + error.message, 'Error');
   }
 }
-
 function fetchAirbnbReservations(config) {
   const dateMin = Utilities.formatDate(new Date(), 'GMT', 'yyyy-MM-dd');
   const url = `https://www.airbnb.com/api/v2/download_reservations?_format=for_remy&_limit=40&_offset=0&collection_strategy=for_reservations_list&date_min=${dateMin}&status=accepted%2Crequest&page=1&key=${config.key}&currency=EUR&locale=en`;
@@ -115,16 +114,61 @@ function appendNewReservations(sheet, newData) {
     return 0; // Return 0 if there's only a header row or no data
   }
 
-  const existingCodes = sheet.getRange(2, 1, Math.max(1, sheet.getLastRow() - 1), 1).getValues().flat();
-  const newReservations = newData.slice(1).filter(row => !existingCodes.includes(row[0]));
-  
-  if (newReservations.length > 0) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, newReservations.length, newReservations[0].length)
-      .setValues(newReservations);
+  const existingData = sheet.getDataRange().getValues();
+  const existingCodes = existingData.slice(1).map(row => row[0]);
+  const existingStatuses = {};
+  existingData.slice(1).forEach(row => {
+    existingStatuses[row[0]] = row[1];
+  });
+
+  let updatedRowCount = 0;
+
+  for (let i = 1; i < newData.length; i++) {
+    const row = newData[i];
+    const confirmationCode = row[0];
+
+    if (!existingCodes.includes(confirmationCode)) {
+      // New reservation, append it
+      sheet.appendRow(row);
+      updatedRowCount++;
+    } else {
+      // Existing reservation, update status if necessary
+      const existingIndex = existingCodes.indexOf(confirmationCode);
+      const currentStatus = existingStatuses[confirmationCode];
+      const newStatus = row[1];
+
+      if (currentStatus !== newStatus) {
+        sheet.getRange(existingIndex + 2, 2).setValue(newStatus);
+        updatedRowCount++;
+      }
+    }
   }
-  
-  return newReservations.length;
+
+  // Check for canceled reservations
+  const newCodes = newData.slice(1).map(row => row[0]);
+  for (let i = 0; i < existingCodes.length; i++) {
+    if (!newCodes.includes(existingCodes[i])) {
+      sheet.getRange(i + 2, 2).setValue("Canceled");
+      updatedRowCount++;
+    }
+  }
+
+  // Sort the sheet by start date (newest to oldest)
+  sortSheetByStartDate(sheet);
+
+  return updatedRowCount;
 }
+
+function sortSheetByStartDate(sheet) {
+  const lastRow = sheet.getLastRow();
+  const lastColumn = sheet.getLastColumn();
+  
+  if (lastRow > 1) { // Only sort if there's data beyond the header
+    const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
+    range.sort({column: 8, ascending: false}); // Column H (8) is the Start date column
+  }
+}
+
 
 function addAdditionalColumns(sheet) {
   const lastColumn = sheet.getLastColumn();
