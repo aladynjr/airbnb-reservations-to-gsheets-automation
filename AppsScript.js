@@ -265,8 +265,8 @@ function addAdditionalColumns(sheet) {
       cityTaxRange.setNumberFormat('€#,##0.00');
     }
 
-    // Add checkboxes for Orario Check-in, Richiesta, Pagata, and DOC columns
-    [orarioCheckInCol, richiestaCol, pagataCol, docCol].forEach(col => {
+    // Add checkboxes for Richiesta, Pagata, and DOC columns
+    [richiestaCol, pagataCol, docCol].forEach(col => {
       if (col) {
         sheet.getRange(2, col, lastRow - 1, 1).insertCheckboxes();
       }
@@ -275,6 +275,11 @@ function addAdditionalColumns(sheet) {
     // Clear any existing values in the Note column
     if (noteCol) {
       sheet.getRange(2, noteCol, lastRow - 1, 1).clearContent();
+    }
+
+    // Ensure Orario Check-in is left as a text field
+    if (orarioCheckInCol) {
+      sheet.getRange(2, orarioCheckInCol, lastRow - 1, 1).setNumberFormat('@'); // Set as text format
     }
   }
 }
