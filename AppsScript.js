@@ -153,11 +153,12 @@ function appendNewReservations(sheet, newData) {
     }
   }
 
-  // Sort the sheet by start date (newest to oldest)
+  // Sort the sheet by start date (oldest to newest)
   sortSheetByStartDate(sheet);
 
   return updatedRowCount;
 }
+
 
 function sortSheetByStartDate(sheet) {
   const lastRow = sheet.getLastRow();
@@ -165,7 +166,7 @@ function sortSheetByStartDate(sheet) {
   
   if (lastRow > 1) { // Only sort if there's data beyond the header
     const range = sheet.getRange(2, 1, lastRow - 1, lastColumn);
-    range.sort({column: 8, ascending: false}); // Column H (8) is the Start date column
+    range.sort({column: 8, ascending: true}); // Column H (8) is the Start date column, now sorted in ascending order
   }
 }
 
@@ -180,7 +181,7 @@ function addAdditionalColumns(sheet) {
   
   if (lastRow > 1) {
     const cityTaxRange = sheet.getRange(2, 14, lastRow - 1, 1);
-    cityTaxRange.setFormula('=IF(ISBLANK($J2), "", 18)');
+    cityTaxRange.setFormula('=IF(J2<=10,((E2*config!$B$4)*J2),((E2*config!$B$4)*10))');
     
     const checkboxRange = sheet.getRange(2, 15, lastRow - 1, 3);
     checkboxRange.insertCheckboxes();
