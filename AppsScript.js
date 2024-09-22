@@ -116,11 +116,7 @@ function appendNewReservations(sheet, newData) {
 
   const existingData = sheet.getDataRange().getValues();
   const existingCodes = existingData.slice(1).map(row => row[0]);
-  const existingStatuses = {};
-  existingData.slice(1).forEach(row => {
-    existingStatuses[row[0]] = row[1];
-  });
-
+  
   let updatedRowCount = 0;
 
   for (let i = 1; i < newData.length; i++) {
@@ -132,15 +128,11 @@ function appendNewReservations(sheet, newData) {
       sheet.appendRow(row);
       updatedRowCount++;
     } else {
-      // Existing reservation, update status if necessary
+      // Existing reservation, update all fields
       const existingIndex = existingCodes.indexOf(confirmationCode);
-      const currentStatus = existingStatuses[confirmationCode];
-      const newStatus = row[1];
-
-      if (currentStatus !== newStatus) {
-        sheet.getRange(existingIndex + 2, 2).setValue(newStatus);
-        updatedRowCount++;
-      }
+      const rangeToUpdate = sheet.getRange(existingIndex + 2, 1, 1, 13); // Columns A to M
+      rangeToUpdate.setValues([row.slice(0, 13)]); // Update all fields from the new data
+      updatedRowCount++;
     }
   }
 
@@ -157,6 +149,28 @@ function appendNewReservations(sheet, newData) {
   sortSheetByStartDate(sheet);
 
   return updatedRowCount;
+}
+
+function updateReservations() {
+  const sheet = getOrCreateSheet('Reservations');
+  const config = getConfig();
+
+  try {
+    const csvData = fetchAirbnbReservations(config);
+    const newData = Utilities.parseCsv(csvData);
+    
+    if (newData.length > 1) {
+      const updatedRowCount = appendNewReservations(sheet, newData);
+      addAdditionalColumns(sheet);
+      formatSheet(sheet);
+      showToast(`Updated ${updatedRowCount} reservations (including new, modified, and repopulated). Sorted by start date.`, 'Success');
+    } else {
+      showToast('No reservations to update', 'Info');
+    }
+  } catch (error) {
+    console.error('Error in updateReservations:', error);
+    showToast('Error updating reservations: ' + error.message, 'Error');
+  }
 }
 
 
